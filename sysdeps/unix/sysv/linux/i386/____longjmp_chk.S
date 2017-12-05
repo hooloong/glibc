@@ -19,7 +19,7 @@
 #include <jmpbuf-offsets.h>
 #include <asm-syntax.h>
 #include <stap-probe.h>
-
+#include <jmp_buf-ssp.h>
 
 	.section .rodata.str1.1,"aMS",@progbits,1
 	.type	longjmp_msg,@object
@@ -46,6 +46,36 @@ longjmp_msg:
 ENTRY (____longjmp_chk)
 	movl	4(%esp), %ecx	/* User's jmp_buf in %ecx.  */
 
+#ifdef __SHSTK__
+# if IS_IN (libc) && defined SHARED
+	/* Check if Shadow Stack is enabled.  */
+	testl   $(1 << 1), %gs:FEATURE_1_OFFSET
+	jz      .Lnoadj
+# endif
+	/* Check and adjust the Shadow-Stack-Pointer.  */
+	xorl	%edx, %edx
+	/* Get the current ssp.  */
+	rdsspd	%edx
+	/* And compare it with the saved ssp value.  */
+	subl	SHADOW_STACK_POINTER_OFFSET(%ecx), %edx
+	je	.Lnoadj
+	/* Count the number of frames to adjust and adjust it
+	   with incssp instruction.  The instruction can adjust
+	   the ssp by [0..255] value only thus use a loop if
+	   the number of frames is bigger than 255.  */
+	negl	%edx
+	shrl	$3, %edx
+	cmpl	$255, %edx
+	jbe	.Lonetime
+.Loopadj:
+	incsspd	%edx
+	subl	$255, %edx
+	cmpl	$255, %edx
+	ja	.Loopadj
+.Lonetime:
+	incsspd	%edx
+.Lnoadj:
+#endif
 	/* Save the return address now.  */
 	movl	(JB_PC*4)(%ecx), %edx
 	/* Get the stack pointer.  */
