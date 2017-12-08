@@ -25,6 +25,15 @@ gen-as-const-headers += jmp_buf-ssp.sym
 tests += tst-saved_mask-1
 endif
 
+ifeq ($(subdir),stdlib)
+# Check that GNU_PROPERTY_X86_FEATURE_1_SHSTK isn't set.
+tests-special += $(objpfx)tst-setcontext3-shstk.out
+endif
+
+$(objpfx)tst-setcontext3-shstk.out: $(..)sysdeps/unix/sysv/linux/x86/tst-setcontext3-shstk.sh $(objpfx)tst-setcontext3
+	$(SHELL) $< $(common-objpfx)stdlib/ $(READELF) > $@; \
+	$(evaluate-test)
+
 ifeq ($(enable-cet),yes)
 ifeq ($(subdir),elf)
 sysdep-dl-routines += dl-cet
